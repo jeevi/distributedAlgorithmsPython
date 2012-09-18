@@ -1,0 +1,194 @@
+
+
+####################################### RICART-AGRAWALA ALGORITHM ##################################################
+
+#importing modules required for this program
+
+import time
+import random
+import logging
+
+#the logging module acts as a print statement, provides a format as to how the output must be printed to the terminal
+
+logging.basicConfig(level=logging.DEBUG, format='[%(asctime)s - %(message)s]', datefmt = '%Y-%m-%d %H:%M:%S')
+
+class RAtoken(DistProcess):
+    
+    # the setup [constructor] which initializes all the variables for each of the process.
+     
+    def setup(procList, PID, TKholder, req):
+        ts = 0                                      # initial timestamp value
+        myID = PID                                  # process id of each process , an integer
+        otherProcList = procList                    # the local copy of the process list
+        requests = createDictionary(otherProcList)  # request list in the form of a dictionary
+        token = createDictionary(otherProcList)     # token list in the form of a dictionary
+        TKpresent = False                           # true if a process currently has the token ,but may not be using it
+        TKheld = False                              # true if process in CS
+        prequests = req                             # number of requests for this process
+                
+        if PID == TKholder:
+            TKpresent = True                       # randomly chosen process [from the global main function] has PID = TKholder. it has right to enter CS
+            
+            
+        logging.debug("process: "+ str(myID) + '(%r)' %self+ " says PRIVILEGE with me: " + str(TKpresent))
+        
+    
+        #invoked when a process has received a request to enter cs by some process with timestamp ts
+        
+    def OnRequest(ts):
+    
+        requests[_source] = max(requests[_source], ts)
+        logging.debug("process: "+ str(myID)+ '(%r)' %self+ ' received request from process %r ' %_source+ " with timestamp " + str(ts))
+
+        #if currently have token but not using it then choose which process must get the token
+
+        if TKpresent == True and TKheld == False:
+            for p in otherProcList:
+                if requests[p] <= token[p]:
+                    continue
+                else:
+                    logging.debug("process: "+str(myID)+ '(%r)' %self+' issuing token to process: ' + str(p))
+                    TKpresent = False
+                    token[_source] = ts
+                    send(PRIVILEGE(token), p)                               #send token to that respective process
+                    break                                                   #exit the loop since token sent to process p
+
+        #set variables of process p so that it can have access to enter cs
+        
+    def OnPRIVILEGE(rtoken):
+        TKpresent = True
+        token = rtoken
+        token[self] = ts
+
+        # main program where the task for the process is assigned and executed        
+
+    def main():
+    
+        def cs_task():
+            logging.debug("process: "+ str(myID)+ '(%r)' %self+ ' in CS ...')
+            
+        while(True):
+            cs(cs_task)
+            t = random.randint(0, 3)
+            time.sleep(t)
+
+    
+        
+    def cs(task):
+    
+        --starting
+        # process increments its own timestamp before requesting to enter cs and sets the value of the requests at its index equal to the timestamp
+        ts = ts + 1
+        requests[self] = ts
+
+        logging.debug("process " + str(myID) + '(%r)' %self+ " is requesting CS")
+        
+        # if dont have the token and have requests that need to be satisfied request for the token
+        
+        if TKpresent == False:
+                        
+            logging.debug("process " + str(myID) + '(%r)' %self+" is sending request with TS as " + str(ts))
+        
+            send(Request(ts), otherProcList)                            #sending request to all the other processes
+            
+            --reply
+
+            #wait until the token is received, TKpresent is set to true for this requesting process, by the process giving the token
+            
+            await(TKpresent == True)
+ 
+        # using the token so, TKheld is set to true
+                                       
+        TKheld = True
+                        
+        --cs
+            
+        task()
+        
+        --releasingCS
+        
+        logging.debug("process: "+ str(myID)+ '(%r)' %self+  ' exiting cs ...')
+
+        #decrement each process's individual requests and check if have any pending requests
+        
+        prequests=prequests-1
+        if prequests == 0:
+            logging.debug("process " + str(myID) + '(%r)' %self+" has finished all its requests, bye...")
+            
+        #total time entered cs equal to the timestamp and exiting the cs so set TKheld to false
+        
+        token[self] = ts
+        TKheld = False
+        
+        #now decide which process must get the token
+        for p in otherProcList:
+            if requests[p] <= token[p]: 
+                continue
+            else:
+                logging.debug("process: "+ str(myID)+ '(%r)' %self+' issuing token to process: ' + str(p))
+                TKpresent = False
+                send(PRIVILEGE(token), p)           #send token to the process p
+                break                               #exit the loop as token sent to process p
+
+    
+
+# create a mapping for each process
+
+def createDictionary(otherProcList):
+
+    temp = dict((p, 0) for p in otherProcList)
+    return temp
+
+# the main program that does the initialization
+
+def main():
+    
+    if len(sys.argv)==3:
+        numProcs = int(sys.argv[1])
+        reqCount = int(sys.argv[2])
+    else:
+        print ("number of requests not assigned, creating 10 processes as a default mechanism")
+        numProcs = 10
+        reqCount = 27
+        
+    use_channel("tcp")
+    
+    procList = createprocs(RAtoken, numProcs)
+
+    assign = [0]*numProcs
+
+    # randomly assign requests to each process
+
+    while reqCount:
+        j = random.randrange(0, numProcs)
+        assign[j]+=1
+        reqCount=reqCount-1
+
+    
+    PID = 0
+    j = 0
+    R = random.randint(0, numProcs - 1)
+
+    #   create processes using the process list[excluding itself] its pid, its personal request list
+
+    for p in procList:
+        setupprocs({p}, [procList - {p}, PID, R, assign[j]])
+        PID=PID+1
+        j+=1
+
+    # start the processes        
+
+    try:
+        startprocs(procList)
+    except IOError:
+        print("exiting ...\n an IO error occured\n\n")
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    

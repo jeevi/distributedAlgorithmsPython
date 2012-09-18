@@ -1,0 +1,174 @@
+
+####################################### SUZUKI-KASAMI ALGORITHM ##################################################
+
+#importing modules required for this program
+
+
+import logging
+import random
+import time
+from collections import deque
+
+#the logging module acts as a print statement, provides a format as to how the output must be printed to the terminal
+
+logging.basicConfig(level=logging.DEBUG, format='[%(asctime)s - %(message)s]', datefmt = '%Y-%m-%d %H:%M:%S')
+
+class SKtoken(DistProcess):
+
+    # the setup [constructor] which initializes all the variables for each of the process.
+    
+    def setup(procList, PID, TKholder, req):
+
+        myID = PID                                  # process id of each process , an integer
+        otherProcList = procList                    # the local copy of the process list
+        RN =  createDictionary(otherProcList)       # request list
+        LN = createDictionary(otherProcList)        # token list
+        TKpresent = False                           # true if a process currently has the token ,but may not be using it
+        TKheld = False                              # true if process in CS
+        prequests = req                             # number of requests for this process
+        Q = deque()                                 # queue for maintaining the processes wanting access to cs, popped from head, inserted at the tail
+        
+        if myID == TKholder:
+            TKpresent = True                       # randomly chosen process [from the global main function] has PID = TKholder. it has right to enter CS
+        
+        logging.debug("process: "+ str(myID)+ '(%r)' %self+ " says PRIVILEGE with me: " + str(TKpresent))    
+   
+       #invoked when a process has received a request to enter cs by some process with PID = n
+    
+    def Onrequest(n):
+                
+        RN[_source] = max(RN[_source], n)
+        logging.debug("process: "+ str(myID)+ '(%r)' %self+ ' received request from process %r ' %_source+ " who has been in CS for  " + str(n) + " times")
+        
+        #if currently have token but not using it then choose which process must get the token
+        
+        if TKpresent == True and TKheld == False:
+            TKpresent == False
+            send(PRIVILEGE(Q, LN),_source)
+            logging.debug("process: "+str(myID)+ '(%r)' %self+ ' issuing token to process: ' + str(_source))
+        
+        
+        #set variables so that the requesting process can have access to enter cs
+         
+    def OnPRIVILEGE(rqueue, rLN):
+        TKpresent = True
+        LN = rLN
+        Q = rqueue
+        
+        
+        # main program where the task for the process is assigned and executed        
+        
+    def main():
+
+        def cs_task():
+            logging.debug("process: "+ str(myID)+ '(%r)' %self+ ' in CS ...')
+        
+        while(True):
+            cs(cs_task)
+            t = random.randint(0, 3)
+            time.sleep(t)
+
+                
+
+    def cs(task):
+    
+        --starting
+
+        logging.debug("process: "+ str(myID)+ '(%r)' %self+ ' requesting CS ...')
+        
+        # if dont have the token request for it
+        
+        if TKpresent == False:
+            RN[self] = RN[self] + 1
+            logging.debug("process " + str(myID) + '(%r)' %self+ " is sending request with request value " + str(RN[self]))
+            
+            #sending request to all the other processes
+            
+            send(request(RN[self]), otherProcList)
+            --reply
+            
+            #wait until the token is received, TKpresent is set to true for this requesting process, by the process giving the token
+            
+            await(TKpresent == True)
+        
+        TKpresent = True
+        TKheld = True
+        # using the token so, TKheld is set to true
+        --CS
+       
+        task()
+        
+        #decrement each process's individual requests and check if have any pending requests
+        
+        prequests=prequests-1
+        if prequests == 0:
+            logging.debug("process " + str(myID) + '(%r)' %self+ " has finished all its requests, bye...")
+            
+                           
+        LN[self] = RN[self]
+        TKheld = False
+        logging.debug("process: "+ str(myID)+ '(%r)' %self+ ' exiting CS ...')  
+        #now decide which process must get the token              
+        for p in otherProcList:
+            if(not(p in Q) and RN[p] == (LN[p] + 1)):
+                Q.append(p)
+                
+        if len(Q)>0:
+            TKpresent = False
+            temp1 = Q.popleft()
+            logging.debug("process: "+ str(myID)+'(%r)' %self+ ' issuing token to process: ' + str(temp1))
+            send(PRIVILEGE(Q, LN), temp1)
+        
+                   
+        --releasingCS
+           
+    
+# create a mapping for each process
+
+def createDictionary(otherProcList):
+
+    temp = dict((p, 0) for p in otherProcList)
+    return temp
+
+
+def main():
+    
+    if len(sys.argv)==3:
+        numProcs = int(sys.argv[1])
+        reqCount = int(sys.argv[2])
+    else:
+        print ("number of requests not assigned, creating 10 processes as a default mechanism")
+        numProcs = 10
+        reqCount = 27
+        
+    use_channel("tcp")
+    
+    procList = createprocs(SKtoken, numProcs)
+
+    assign = [0]*numProcs
+
+    # randomly assign requests to each process
+    
+    while reqCount:
+        j = random.randrange(0, numProcs)
+        assign[j]+=1
+        reqCount=reqCount-1
+
+    PID = 0
+    j = 0
+    R = random.randint(0, numProcs - 1)
+
+    #   create processes using the process list[excluding itself] its pid, its personal request list
+    
+    for p in procList:
+        setupprocs({p}, [procList, PID, R, assign[j]])
+        PID=PID+1
+        j+=1
+    
+    #start the processes    
+    try:
+        startprocs(procList)
+    except IOError:
+        print("exiting ...\n an IO error occured\n\n")
+    
+    
